@@ -10,20 +10,19 @@ This document provides detailed instructions for configuring Azure Private Link 
 ## 1. Creating Private Link Endpoints in Snowflake
 
 ### Connecting directly to Azure Storage Account (ADLS or Blob Storage)
-Use this approach for direct private endpoint connectivity to an Azure Storage account. Obtain the Storage Account Resource ID via Azure Portal or Azure CLI:
+Use this approach for direct private endpoint connectivity to an Azure Storage account. Obtain the Storage Account Resource ID and Blob Endpoint FQDN via Azure Portal or Azure CLI:
 
 ```bash
-az storage account show -g "<resource-group>" -n "<storage-account-name>" --query "id" -o tsv
+az storage account show -g "benroeck" -n "benroeckazwesteu" --query "[id, primaryEndpoints.blob]"
 ```
 
 Then provision the endpoint in Snowflake:
 
 ```sql
-SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT(
-    '/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>', -- Storage Account Resource ID
-    '<storage-account-name>.blob.core.windows.net', -- Storage Account Blob endpoint FQDN
-    'blob' -- Resource type (blob)
-);
+SET adls_id = '/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>';
+SET adls_blob_fqdn = '<storage-account-name>.blob.core.windows.net';
+
+SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT($adls_id, $adls_blob_fqdn, 'blob');
 ```
 
 ### Connecting via Private Link Service
@@ -32,10 +31,10 @@ Use this method if you're connecting Snowflake to Azure Blob Storage through an 
 Replace placeholders with your Azure Private Link Service details:
 
 ```sql
-SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT(
-    '/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Network/privateLinkServices/<private-link-service-name>', -- Private Link Service Resource ID
-    '<storage-account-name>.blob.core.windows.net' -- Azure Storage Blob endpoint FQDN
-);
+SET adls_id = '/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>';
+SET adls_blob_fqdn = '<storage-account-name>.blob.core.windows.net';
+
+SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT($adls_id, $adls_blob_fqdn);
 ```
 
 ### Confirm Endpoint Creation
@@ -101,19 +100,9 @@ SET client_id=(
   WHERE $1 = 'AZURE_CONSENT_URL'
 );
 
-SET storage_account_name = '<storage-account-name>';
-SET storage_resource_group = '<resource-group>';
+SET adls_id = '/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>';
 
-SELECT
-  CONCAT(
-    'az role assignment create --role "Storage Blob Data Contributor" --assignee "',
-    $client_id,
-    '" --scope "$(az storage account show -g "',
-    $storage_resource_group,
-    '" -n "',
-    $storage_account_name,
-    '" --query "id" -o tsv)"'
-  ) AS cli_command;
+SELECT CONCAT('az role assignment create --role "Storage Blob Data Contributor" --assignee "', $client_id, '" --scope "', $adls_id, '"' ) AS cli_command;
 ```
 
 ### Assign IAM Role
