@@ -69,7 +69,7 @@ CREATE OR REPLACE STORAGE INTEGRATION <storage_integration_name>
   TYPE = EXTERNAL_STAGE
   STORAGE_PROVIDER = AZURE
   AZURE_TENANT_ID = '<azure-tenant-id>'
-  STORAGE_ALLOWED_LOCATIONS = ('azure://<storage-account-name>.blob.core.windows.net/<path>/')
+  STORAGE_ALLOWED_LOCATIONS = ('azure://<storage-account-name>.blob.core.windows.net/<container>/<path>/')
   USE_PRIVATELINK_ENDPOINT = TRUE
   ENABLED = TRUE;
 ```
@@ -128,7 +128,7 @@ Define an external stage referencing your storage integration:
 ```sql
 CREATE OR REPLACE STAGE <stage_name>
   STORAGE_INTEGRATION = <storage_integration_name>
-  URL = 'azure://<storage-account-name>.blob.core.windows.net/<path>';
+  URL = 'azure://<storage-account-name>.blob.core.windows.net/<container>/<path>/';
 ```
 
 ### Validate Connectivity and Permissions:
