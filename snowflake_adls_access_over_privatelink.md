@@ -88,22 +88,19 @@ This option creates a private endpoint from Snowflake directly to a storage acco
 > **Subresource note:**
 > This argument is required when targeting Azure Storage directly.
 
-#### Required Values
+You will need the **Resource ID** and the **Blob Endpoint FQDN** for the Azure Data Lake Store (ADLS) account you are integrating. You can get them from the Azure Portal or by using the CLI:
 
-- **Storage Account Resource ID**
-- **Blob Endpoint FQDN** (e.g., `<storage-account-name>.blob.core.windows.net`)
+  - Azure Portal
 
-- **Option 1: Azure CLI**
+    - Navigate to to your storage account
+    - **Settings > Endpoints**: copy the **Blob service endpoint**
+    - **Properties (or Overview)**: copy the **Resource ID**
 
-  ```bash
-  az storage account show -g "<resource-group>" -n "<storage-account-name>" --query "[id, primaryEndpoints.blob]"
-  ```
+  - Azure CLI
 
-- **Option 2: Azure Portal**
-
-  - Go to your storage account
-  - **Settings > Endpoints**: copy the **Blob service endpoint**
-  - **Properties (or Overview)**: copy the **Resource ID**
+    ```bash
+    az storage account show -g "<resource-group>" -n "<storage-account-name>" --query "[id, primaryEndpoints.blob]"
+    ```
 
 #### Provision the Endpoint in Snowflake
 
@@ -116,30 +113,32 @@ SET adls_blob_fqdn = '<storage-account-name>.blob.core.windows.net';
 SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT($adls_id, $adls_blob_fqdn, 'blob');
 ```
 
+After provisioning the private link endpoint, use the `SELECT SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();` to check its status. If the endpoint status is `"status": "PENDING"`, the endpoint has been created and is ready for approval in Azure.
+
 ---
 
 ### Connecting via Private Link Service (PLS)
 
-Use this method if your architecture uses an Azure Private Link Service as a proxy or relay to Blob Storage. This is common in advanced networking scenarios or when exposing shared services.
+Use this method if your architecture uses an Azure Private Link Service as a proxy or relay to Blob Storage. You will need the **Resource ID** for the Azure Private Link Service you are integrating. You can get this from the Azure Portal or by using the CLI:
 
-#### Get the Private Link Service Resource ID
+  - Azure Portal
 
-- **Option 1: Azure CLI**
+    - Navigate to the **Private Link Center**
+    - Select **Private link services**
+    - Choose your service (`<pls-name>`)
+    - Go to **Settings > Properties**
+    - Copy the **Resource ID** under **Essentials**
 
-  ```bash
-  az network private-link-service show \
-    --resource-group "<resource-group>" \
-    --name "<pls-name>" \
-    --query "id"
-  ```
+  - Azure CLI
 
-- **Option 2: Azure Portal**
+    ```bash
+    az network private-link-service show \
+      --resource-group "<resource-group>" \
+      --name "<pls-name>" \
+      --query "id"
+    ```
 
-  - Navigate to the **Private Link Center**
-  - Select **Private link services**
-  - Choose your service (`<pls-name>`)
-  - Go to **Settings > Properties**
-  - Copy the **Resource ID** under **Essentials**
+
 
 #### Provision the Endpoint in Snowflake
 
@@ -155,27 +154,13 @@ SET adls_blob_fqdn = '<storage-account-name>.blob.core.windows.net';
 SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT($pls_id, $adls_blob_fqdn);
 ```
 
+After provisioning the private link endpoint, use the `SELECT SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();` to check its status. If the endpoint status is `"status": "PENDING"`, the endpoint has been created and is ready for approval in Azure.
+
 ---
 
-### Confirm Endpoint Status
+## Approve the Endpoint Connection
 
-After initiating the private endpoint connection, use the following command to check its status:
-
-```sql
-SELECT SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();
-```
-
-If the result includes `"status": "PENDING"`, the connection must be approved in Azure before Snowflake can use it.
-
-Your **cloud engineering or networking team** may need to approve this request, depending on your organization's Azure governance model.
-
-Once the approval has been completed, re-run the command above to confirm that the status has changed to `"APPROVED"`.
-
-[Docs: Endpoint Status](https://docs.snowflake.com/en/user-guide/data-load-azure-private#step-2-approve-the-private-endpoint-connection)
-
-## Approve Private Endpoint in Azure
-
-Use the Azure Portal to approve the pending private endpoint request.
+Use the Azure Portal to approve the pending private endpoint request:
 
 - **Private Link Service**:
   Azure Portal → Private Link Center → Private Link Services → [your service] → Private Endpoint Connections → Approve
@@ -200,25 +185,20 @@ Approval may require action from your organization's **network or cloud infrastr
 ---
 
 ## Connect to ADLS over Private Link
-You a [Storage Integration](https://docs.snowflake.com/en/sql-reference/sql/create-storage-integration) or [External Volume](https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-external-volume-azure) object in Snowflake to securely connect to your Azure Blob Storage (ADLS) account using Private Link.
+Once the `SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();` function reports the stats as `"status": "APPROVED"` you can use a [Storage Integration](https://docs.snowflake.com/en/sql-reference/sql/create-storage-integration) or [External Volume](https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-external-volume-azure) to securely connect to your Azure Blob Storage (ADLS) account using the private link endpoint.
 
-The `USE_PRIVATELINK_ENDPOINT = TRUE` property is optional in the syntax, but **required** when using Azure Private Link. This instructs Snowflake to route traffic through the provisioned private endpoint instead of the public internet.
+This is done by setting the `USE_PRIVATELINK_ENDPOINT` property to `TRUE`.  This parameter is optional when creating the resources, but is **required** to route the traffic over the private endpoint.  Before creating an External Volume or Storage Integration, gather your **Azure Tenant ID**. This identifies the Azure Entra ID (Azure Active Directory) tenant that owns the storage account. You can get this from the Azure Portal or by using the CLI:
 
-Before creating the integration, gather your **Azure Tenant ID**. This identifies the Azure Active Directory (Entra ID) tenant that owns the storage account.
+  - Azure Portal:
+    - Go to the [Microsoft Entra ID overview page](https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview)
+    - Under **Basic Information**, copy the **Tenant ID** field
+  - Azure CLI:
 
-You can retrieve the tenant ID in either of the following ways:
+    ```bash
+    az account show --query "[tenantId]"
+    ```
 
-- **Azure CLI**:
-
-  ```bash
-  az account show --query "[tenantId]"
-  ```
-
-- **Azure Portal**:
-  - Go to the [Microsoft Entra ID overview page](https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview)
-  - Under **Basic Information**, copy the **Tenant ID** field
-
-### Create the Storage Integration using the following SQL command:
+### Create a Storage Integration using the following SQL command:
 
 ```sql
 CREATE OR REPLACE STORAGE INTEGRATION <storage_integration_name>
@@ -251,36 +231,60 @@ Once created, Snowflake will use private connectivity for all [Iceberg Tables](h
 
 ---
 
-## Azure Consent and IAM Role Assignment
+## Snowflake Authentication and Authorization
 
-### Grant Consent and Identify the Snowflake Service Principal
+When connecting to Azure Data Lake Storage (ADLS) from Snowflake, an Azure Private Link Endpoint is used to ensure a secure and private networking connection. However, this only provides the networking layer. For full access, Snowflake must also be **authenticated and authorized** to interact with data in your ADLS account. This is achieved using an **Azure Entra ID (formerly Azure Active Directory) Enterprise Application (Service Principal).**
 
-**Grant Consent via AZURE_CONSENT_URL**
-
-- Run the following command in Snowflake to retrieve consent details:
-
-```sql
-DESC STORAGE INTEGRATION <storage_integration_name>;
--- or --
-DESC EXTERNAL VOLUME <external_volume_name>;
-```
-
-- Locate the `AZURE_CONSENT_URL` in the result, and open it in a browser.
-
-  **Some organizations require administrator approval in Microsoft Entra ID (formerly Azure AD) before granting consent. If you encounter a message that admin approval is needed, contact your Entra ID administration team.**
-
-- This action registers the Snowflake Enterprise Application (service principal) in your Azure tenant. The application is added with no default permissions and must be granted access in the next step.
-
-**Locate the Snowflake Service Principal Name**
-
-- Note the value in `AZURE_MULTI_TENANT_APP_NAME` from the `DESC STORAGE INTEGRATION` or `DESC EXTERNAL VOLUME` output.
-- Use the prefix **before** the underscore to search in the Azure Portal.
-
-For example, if `AZURE_MULTI_TENANT_APP_NAME` is `a1b2c3snowflakepacint_1234567891011`, search for `a1b2c3snowflakepacint`.
+Snowflake uses an enterprise application registered in your Azure Entra ID tenant—as its **Service Principal identity** for authentication and authorization when accessing ADLS files.
 
 ---
 
-### Assign IAM Role using the Azure CLI
+### Register the Snowflake Enterprise Application
+
+To register the Snowflake Enterprise Application in your tenant, run the `DESCRIBE` command on your Storage Integration or External Volume to retrieve the `AZURE_CONSENT_URL`. Navigating to this URL in a browser initiates the registration process.
+
+```sql
+DESCRIBE STORAGE INTEGRATION <storage_integration_name>;
+-- or --
+DESCRIBE EXTERNAL VOLUME <external_volume_name>;
+```
+
+Locate the `AZURE_CONSENT_URL` in the output and open it in a browser.
+
+> **Note:** Some organizations require administrator approval in Microsoft Entra ID before granting consent. If you see a message requesting admin approval, contact your Entra ID admin team.
+
+Once registered, the application has no default Access Control (IAM) roles—these must be assigned manually.
+
+---
+
+### Assign an Azure Access Control (IAM) Role
+
+To authorize Snowflake’s access to ADLS, assign an IAM role (e.g., **Storage Blob Data Contributor**) to the Snowflake Service Principal. You’ll need either the **client ID** (available in the `AZURE_CONSENT_URL`) or the **Service Principal name** (found in `AZURE_MULTI_TENANT_APP_NAME`).
+
+For example, if the value of `AZURE_MULTI_TENANT_APP_NAME` is `a1b2c3snowflakepacint_1234567891011`, the e **Service Principal name** is `a1b2c3snowflakepacint`.
+
+#### Assign IAM Role via Azure Portal
+
+1. Go to [https://portal.azure.com](https://portal.azure.com) and open your **Storage Account**
+2. In the left menu, select **Access Control (IAM)**
+3. Click **+ Add > Add role assignment**
+4. In the role assignment wizard:
+   - Search for and select **Storage Blob Data Contributor**
+   - Click **Next**
+5. Under **Members**:
+   - Choose **User, group, or service principal**
+   - Click **Select members**
+   - Search using the prefix from `AZURE_MULTI_TENANT_APP_NAME`
+   - Select the matching service principal
+6. Click **Review + assign**
+
+To confirm, return to the **Role Assignments** tab and verify that the Snowflake Service Principal appears under the assigned role.
+
+---
+
+#### Assign IAM Role via Azure CLI
+
+Use the following Snowflake SQL to generate a CLI command that assigns the `Storage Blob Data Contributor` role:
 
 ```sql
 DESC STORAGE INTEGRATION <storage_integration_name>;
@@ -288,47 +292,32 @@ DESC STORAGE INTEGRATION <storage_integration_name>;
 DESC EXTERNAL VOLUME <external_volume_name>;
 
 SELECT cli_command
-FROM
-(
+FROM (
     SELECT "property_value" AS extract_client_id,
-        REGEXP_SUBSTR(extract_client_id, 'client_id=([^&]+)', 1, 1, 'e', 1) AS client_id,
-        CONCAT('az role assignment create --role "Storage Blob Data Contributor" --assignee "', client_id, '" --scope "', $adls_id, '"' ) AS cli_command
+           REGEXP_SUBSTR(extract_client_id, 'client_id=([^&]+)', 1, 1, 'e', 1) AS client_id,
+           CONCAT('az role assignment create --role "Storage Blob Data Contributor" --assignee "', client_id, '" --scope "', $adls_id, '"') AS cli_command
     FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))
-    WHERE contains("property_value", 'client_id=')
-)
-;
+    WHERE CONTAINS("property_value", 'client_id=')
+);
 ```
 
-Use the generated command from above to assign the role, example:
+Copy and run the generated cli_command:
 
 ```bash
 az role assignment create --role "Storage Blob Data Contributor" --assignee "<client-id>" --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>"
 ```
 
-[Azure Role Assignment CLI Reference](https://learn.microsoft.com/en-us/cli/azure/role/assignment)
+Refer to the [Azure Role Assignment CLI Reference](https://learn.microsoft.com/en-us/cli/azure/role/assignment) for more options.
 
 ---
 
-### Assign IAM Role via Azure Portal
+## Validate Configuration
 
-- Navigate to [https://portal.azure.com](https://portal.azure.com) and open your **Storage Account**
-- In the left-hand menu, click **Access Control (IAM)**
-- Click **+ Add > Add Role Assignment**
-- In the wizard:
-  - Search for **Storage Blob Data Contributor**
-  - Click **Next**
-- In the **Members** tab:
-  - Choose **User, group, or service principal**
-  - Click **Select members**
-  - Search using the prefix of `AZURE_MULTI_TENANT_APP_NAME` (e.g., `a1b2c3snowflakepacint` in `a1b2c3snowflakepacint_1234567891011`)
-  - Select the matching service principal
-- Click **Review + assign**
-
-You can verify the assignment by returning to the **Role Assignments** tab and confirming that the Snowflake service principal appears under the assigned role.
+Once network access and authorization are correctly configured, you can verify functionality creating either an **Iceberg Table** (for External Volumes) or an **External Stage** (for Storage Integrations).
 
 ---
 
-## Test External Volumes by creating an Iceberg Table
+### Validate External Volumes with an Iceberg Table
 
 ```sql
 CREATE OR REPLACE ICEBERG TABLE <iceberg_table_name>
@@ -338,11 +327,11 @@ CREATE OR REPLACE ICEBERG TABLE <iceberg_table_name>
   AS
   SELECT
     SEQ8() AS id,
-    RANDOM() AS random_value,
+    RANDOM() AS random_value
   FROM TABLE(GENERATOR(ROWCOUNT => 1000));
 ```
 
-### Test Reading from the Table
+**Read sample data:**
 
 ```sql
 SELECT * FROM <iceberg_table_name> LIMIT 10;
@@ -350,7 +339,7 @@ SELECT * FROM <iceberg_table_name> LIMIT 10;
 
 ---
 
-## Test Storage Integrations by creating an External Stage
+### Validate Storage Integrations with an External Stage
 
 ```sql
 CREATE OR REPLACE STAGE <stage_name>
@@ -358,13 +347,13 @@ CREATE OR REPLACE STAGE <stage_name>
   URL = 'azure://<storage-account-name>.blob.core.windows.net/<container>/<path>/';
 ```
 
-**Test listing files:**
+**List files in the stage:**
 
 ```sql
 LIST @<stage_name>;
 ```
 
-**Test writing data:**
+**Write test data:**
 
 ```sql
 COPY INTO @<stage_name>/test-writing/
@@ -378,9 +367,11 @@ FROM (
 );
 ```
 
-**Test reading data:**
+**Read back test data:**
 
 ```sql
 SELECT $1, $2, $3, $4
 FROM @<stage_name>/test-writing/data_0_0_0.csv.gz;
 ```
+
+---
