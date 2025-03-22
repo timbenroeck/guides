@@ -1,9 +1,6 @@
 # Private Link Integration for Snowflake Egress into Azure Data Lake Store
 
-This document provides detailed instructions for configuring **Azure Private Link connectivity** from Snowflake to Azure Data Lake Store (ADLS) via:
-
-- **Storage Integrations (External Stages and External Tables)**
-- **External Volumes (Iceberg Tables)**
+This document provides detailed instructions for configuring **Azure Private Link connectivity** for Snowflake to Azure Data Lake Store (ADLS) connectivity.  It will provide instructions for creating **Storage Integrations** used byExternal Stages and External Tables, as well as, **External Volumes** which are required for reading and writing Apache Iceberg tables.
 
 ---
 
@@ -11,14 +8,14 @@ This document provides detailed instructions for configuring **Azure Private Lin
 
 It's important to select the correct integration method based on your specific use case:
 
-- **Storage Integrations (External Stages & External Tables)**
-  - Used to access and query external data directly from Azure Blob Storage (ADLS).
+- **Storage Integrations**:
+  - Used to access and query external data directly from Azure Blob Storage (ADLS) via External Stages and/or External Tables.
   - Supports reading from file formats: JSON, Avro, ORC, XML, Parquet, Delta.
   - This method is ideal when you need flexible schema-on-read capabilities for semi-structured or structured data stored externally.
   - Historically, Parquet and Delta tables have been queried via External Tables, but Snowflake recommends migrating to Iceberg Tables via External Volumes for better performance, ACID properties, and metadata management.
 
-- **External Volumes (Iceberg Tables)**
-  - Used exclusively for reading data stored in Apache Iceberg format, including Iceberg-managed tables built on Parquet or Delta files.
+- **External Volumes**:
+  - Used exclusively for reading and writing data stored in Apache Iceberg format, including Iceberg-managed tables built on Parquet or Delta files.
   - Provides improved performance through efficient metadata handling, transactional consistency (ACID compliance), and robust schema evolution.
   - Preferred for new implementations involving Parquet and Delta files, as Iceberg Tables via External Volumes are actively replacing External Tables for these formats.
   - Suitable for multi-engine environments (Snowflake, Spark, Hive, Presto), facilitating unified data management across diverse analytical workloads.
@@ -58,7 +55,7 @@ Ensure the following placeholders are replaced:
 
 ## Creating Private Link Endpoints in Snowflake
 
-Private Link endpoints in Snowflake are used to route traffic securely to ADLS over a private network. These endpoints are tightly bound to a hostname and cannot be modified after they are created.
+Private Link endpoints in Snowflake are used to route traffic securely to ADLS over an Azure Private Link connection. These endpoints are tightly bound to a hostname and cannot be modified after they are created.
 
 #### Hostname Options
 
@@ -113,7 +110,7 @@ SET adls_blob_fqdn = '<storage-account-name>.blob.core.windows.net';
 SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT($adls_id, $adls_blob_fqdn, 'blob');
 ```
 
-After provisioning the private link endpoint, use the `SELECT SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();` to check its status. If the endpoint status is `"status": "PENDING"`, the endpoint has been created and is ready for approval in Azure.
+After provisioning the private link endpoint, use the `SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO()` to check its status. If the endpoint status is `"status": "PENDING"`, the endpoint has been created and is ready for approval in Azure.
 
 ---
 
@@ -154,7 +151,7 @@ SET adls_blob_fqdn = '<storage-account-name>.blob.core.windows.net';
 SELECT SYSTEM$PROVISION_PRIVATELINK_ENDPOINT($pls_id, $adls_blob_fqdn);
 ```
 
-After provisioning the private link endpoint, use the `SELECT SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();` to check its status. If the endpoint status is `"status": "PENDING"`, the endpoint has been created and is ready for approval in Azure.
+After provisioning the private link endpoint, use the `SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO()` to check its status. If the endpoint status is `"status": "PENDING"`, the endpoint has been created and is ready for approval in Azure.
 
 ---
 
@@ -185,7 +182,7 @@ Approval may require action from your organization's **network or cloud infrastr
 ---
 
 ## Connect to ADLS over Private Link
-Once the `SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO();` function reports the stats as `"status": "APPROVED"` you can use a [Storage Integration](https://docs.snowflake.com/en/sql-reference/sql/create-storage-integration) or [External Volume](https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-external-volume-azure) to securely connect to your Azure Blob Storage (ADLS) account using the private link endpoint.
+Once the `SYSTEM$GET_PRIVATELINK_ENDPOINTS_INFO()` function reports the stats as `"status": "APPROVED"` you can use a [Storage Integration](https://docs.snowflake.com/en/sql-reference/sql/create-storage-integration) or [External Volume](https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-external-volume-azure) to securely connect to your Azure Blob Storage (ADLS) account using the private link endpoint.
 
 This is done by setting the `USE_PRIVATELINK_ENDPOINT` property to `TRUE`.  This parameter is optional when creating the resources, but is **required** to route the traffic over the private endpoint.  Before creating an External Volume or Storage Integration, gather your **Azure Tenant ID**. This identifies the Azure Entra ID (Azure Active Directory) tenant that owns the storage account. You can get this from the Azure Portal or by using the CLI:
 
