@@ -1,14 +1,8 @@
 # Secure OAuth Integration Between Microsoft Entra ID and Snowflake
 
-###  With Token-Based Login from a Python Notebook
-
----
-
 ## Overview
 
-This guide walks through configuring an **external OAuth security integration** between **Microsoft Entra ID (Entra ID)** and **Snowflake**, and using a **Databricks notebook** to authenticate via **OAuth 2.0** using **MSAL** and connect with the **Snowflake Python Connector**.
-
-OAuth is preferred for enterprise authentication because it avoids hardcoded credentials and enables identity federation.
+This guide walks through configuring an **external OAuth security integration** between **Microsoft Entra ID ** and **Snowflake**, and using a **Databricks notebook** to authenticate via **OAuth 2.0** using **MSAL** and connect with the **Snowflake Python Connector**.
 
 ---
 
