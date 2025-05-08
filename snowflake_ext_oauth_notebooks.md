@@ -1,7 +1,5 @@
 # Secure OAuth Integration Between Microsoft Entra ID and Snowflake
 
-## Overview
-
 This guide walks through configuring an **external OAuth security integration** between **Microsoft Entra ID ** and **Snowflake**, and using a **Databricks notebook** to authenticate via **OAuth 2.0** using **MSAL** and connect with the **Snowflake Python Connector**.
 
 ---
